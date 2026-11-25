@@ -1,0 +1,7 @@
+{% if status and status.values()|select|list %}
+<div class="alert" role="alert">
+  <p><strong>The trained models are not available yet.</strong></p>
+  <p>Train them from the project folder, then reload this page:</p>
+  <pre><code>python -m src.train</code></pre>
+</div>
+{% endif %}

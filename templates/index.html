@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+{% block content %}
+<section class="hero">
+  <div class="hero-text">
+    <h1>Is that point of light a star, or a whole galaxy?</h1>
+    <p class="lede">In survey images, distant galaxies and nearby stars can both look like faint dots.
+      StellarClass AI learns the difference from {{ "{:,}".format(metrics.dataset.n_total) if metrics else "" }}
+      objects whose true class was measured from their spectra by the Sloan Digital Sky Survey.
+      It then estimates the class of a new object from its brightness in five colour filters,
+      plus its redshift when one is available.</p>
+    <p><a class="button" href="{{ url_for('predict') }}">Classify an object</a>
+      <a class="text-link" href="{{ url_for('performance') }}">See how well it works</a></p>
+  </div>
+  <figure class="hero-figure">
+    <div class="chart-box chart-box--hero"><canvas id="hero-chart" aria-label="Colour-colour diagram of SDSS stars and galaxies" role="img"></canvas></div>
+    <figcaption>Colour-colour diagram of 3,000 real SDSS objects. Stars (amber) follow a narrow sequence;
+      galaxies (blue) spread to redder colours. Overlap between them is what makes the problem non-trivial.</figcaption>
+  </figure>
+</section>
+
+{% include "_model_missing.html" %}
+
+{% if metrics and primary %}
+<section class="facts" aria-labelledby="facts-heading">
+  <h2 id="facts-heading">The trained model</h2>
+  <dl class="fact-list">
+    <div><dt>Model</dt><dd>Random Forest ({{ primary.best_params.n_estimators }} trees)</dd></div>
+    <div><dt>Training records</dt><dd>{{ "{:,}".format(metrics.dataset.n_train) }}</dd></div>
+    <div><dt>Held-out test records</dt><dd>{{ "{:,}".format(metrics.dataset.n_test) }}</dd></div>
+    <div><dt>Input features</dt><dd>{{ primary.features|length }} ({{ primary.features|join(", ") }}), plus 4 derived colours</dd></div>
+    <div><dt>Test accuracy, with redshift</dt><dd class="num">{{ "%.2f"|format(primary.models["Random Forest"].accuracy * 100) }}%</dd></div>
+    <div><dt>Test accuracy, magnitudes only</dt><dd class="num">{{ "%.2f"|format(metrics.feature_sets.photometric.models["Random Forest"].accuracy * 100) }}%</dd></div>
+  </dl>
+  <p class="note">Redshift comes from a spectrum, and with a spectrum SDSS already knows the class. The
+    magnitudes-only model is the realistic case for objects that have only been imaged; it is less accurate,
+    and that gap is reported rather than hidden.</p>
+</section>
+{% endif %}
+
+<section class="how" aria-labelledby="how-heading">
+  <h2 id="how-heading">How it works</h2>
+  <ol class="steps">
+    <li><h3>Real survey data</h3><p>{{ config.DATASET_NAME }} ({{ config.DATASET_RELEASE }}). Quasars are removed, leaving a binary star/galaxy task.</p></li>
+    <li><h3>Cleaning and features</h3><p>Invalid sentinel values are dropped. Colour indices such as g − r are computed from the magnitudes inside the model pipeline.</p></li>
+    <li><h3>Training and tuning</h3><p>A Random Forest is tuned with cross-validation and compared with Logistic Regression and a majority-class baseline.</p></li>
+    <li><h3>Honest evaluation</h3><p>Scores come from {{ "{:,}".format(metrics.dataset.n_test) if metrics else "held-out" }} test objects the model never saw during training.</p></li>
+  </ol>
+</section>
+{% endblock %}
+{% block scripts %}<script>StellarClass.heroChart("hero-chart", "{{ url_for('api_sample', n=1500) }}");</script>{% endblock %}

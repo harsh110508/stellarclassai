@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Batch classification{% endblock %}
+{% block content %}
+<h1>Batch classification</h1>
+<p class="lede">Upload a CSV with columns <code>u, g, r, i, z</code> and an optional <code>redshift</code> column.
+  You get the same file back with a prediction and both class probabilities added to each row.</p>
+{% include "_model_missing.html" %}
+<div class="split">
+  <form method="post" enctype="multipart/form-data" class="panel form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if error %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}
+    <div class="field">
+      <label for="file">CSV file</label>
+      <input id="file" name="file" type="file" accept=".csv,text/csv" required>
+      <small>Up to {{ "{:,}".format(max_rows) }} rows and 2 MB.</small>
+    </div>
+    <div class="form-actions"><button type="submit" class="button">Classify and download</button>
+      <a class="text-link" href="{{ url_for('batch_template') }}">Download a template CSV</a></div>
+  </form>
+  <div class="panel">
+    <h2>How rows are handled</h2>
+    <ul class="evidence">
+      <li>Rows with a redshift value use the magnitudes + redshift model; rows without one use the magnitudes-only model.</li>
+      <li>Rows with missing or invalid magnitudes are kept, with the reason in an <code>error</code> column.</li>
+      <li>Added columns: <code>prediction</code>, <code>p_star</code>, <code>p_galaxy</code>, <code>feature_set</code>, <code>error</code>.</li>
+      <li>Uploaded files are processed in memory and not stored.</li>
+    </ul>
+  </div>
+</div>
+{% endblock %}

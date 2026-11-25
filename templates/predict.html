@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Classify an object{% endblock %}
+{% block content %}
+<h1>Classify an object</h1>
+<p class="lede">Enter the object's SDSS magnitudes. Add a spectroscopic redshift if you have one; leave it
+  empty to use the magnitudes-only model.</p>
+{% include "_model_missing.html" %}
+
+<div class="split">
+  <form method="post" class="panel form" novalidate id="predict-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if errors.model %}<p class="field-error" role="alert">{{ errors.model }}</p>{% endif %}
+    {% if errors and not errors.model %}<p class="field-error" role="alert">Check the highlighted fields.</p>{% endif %}
+    <fieldset>
+      <legend>Magnitudes (required)</legend>
+      <div class="field-grid">
+        {% for band in config.MAGNITUDE_COLUMNS %}
+        {% set lo, hi = config.INPUT_LIMITS[band] %}
+        <div class="field{% if errors[band] %} has-error{% endif %}">
+          <label for="f-{{ band }}">{{ band }}</label>
+          <input id="f-{{ band }}" name="{{ band }}" type="number" step="any" min="{{ lo }}" max="{{ hi }}"
+                 inputmode="decimal" required value="{{ values.get(band, '') }}"
+                 aria-describedby="h-{{ band }}{% if errors[band] %} e-{{ band }}{% endif %}">
+          <small id="h-{{ band }}">{{ lo|int }}–{{ hi|int }} mag</small>
+          {% if errors[band] %}<small class="field-error" id="e-{{ band }}">{{ band }} {{ errors[band] }}</small>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Redshift (optional)</legend>
+      {% set lo, hi = config.INPUT_LIMITS.redshift %}
+      <div class="field{% if errors.redshift %} has-error{% endif %}">
+        <label for="f-redshift">redshift</label>
+        <input id="f-redshift" name="redshift" type="number" step="any" min="{{ lo }}" max="{{ hi }}"
+               inputmode="decimal" value="{{ values.get('redshift', '') }}" aria-describedby="h-redshift">
+        <small id="h-redshift">Leave empty if unknown. Range {{ lo }} to {{ hi|int }}.</small>
+        {% if errors.redshift %}<small class="field-error">redshift {{ errors.redshift }}</small>{% endif %}
+      </div>
+    </fieldset>
+    <div class="form-actions">
+      <button type="submit" class="button">Classify</button>
+      {% for ex in examples %}
+      <button type="button" class="button button--quiet" data-fill='{{ ex["values"]|tojson }}'>Fill {{ ex.label|lower }}</button>
+      {% endfor %}
+    </div>
+    {% if examples %}<p class="note">Examples are real objects from the dataset; they may also be in the training set.</p>{% endif %}
+  </form>
+
+  <section class="panel result" aria-live="polite" aria-labelledby="result-heading">
+    <h2 id="result-heading">Result</h2>
+    {% if result %}
+      {% set p_star = result.probabilities.STAR %}
+      <p class="verdict verdict--{{ result.prediction|lower }}">{{ result.prediction|title }}</p>
+      <div class="prob-bar" role="img" aria-label="Star probability {{ '%.1f'|format(p_star*100) }} percent, galaxy probability {{ '%.1f'|format((1-p_star)*100) }} percent">
+        <span class="prob-star" style="width: {{ p_star * 100 }}%"></span><span class="prob-galaxy" style="width: {{ (1 - p_star) * 100 }}%"></span>
+      </div>
+      <dl class="prob-legend">
+        <div><dt><span class="swatch swatch--star"></span>Star</dt><dd class="num">{{ p_star|pct }}</dd></div>
+        <div><dt><span class="swatch swatch--galaxy"></span>Galaxy</dt><dd class="num">{{ result.probabilities.GALAXY|pct }}</dd></div>
+      </dl>
+      <p>{{ result.explanation.summary }}</p>
+      <h3>Evidence compared with the training data</h3>
+      <ul class="evidence">{% for line in result.explanation.evidence %}<li>{{ line }}</li>{% endfor %}</ul>
+      {% for w in result.explanation.warnings %}<p class="warning">{{ w }}</p>{% endfor %}
+      <p class="note">Model used: Random Forest, {{ FEATURE_SET_LABELS[result.feature_set]|lower }}
+        ({{ result.features_used|join(", ") }}). {{ result.disclaimer }}
+        The evidence lines compare your values with typical stars and galaxies; they are not a record of how
+        the trees voted.</p>
+    {% else %}
+      <p class="empty">Enter magnitudes and choose Classify. The predicted class, the probability for each class
+        and a short explanation will appear here.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

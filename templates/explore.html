@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Data explorer{% endblock %}
+{% block content %}
+<h1>Data explorer</h1>
+{% if error %}
+<div class="alert" role="alert"><p><strong>The dataset is not available.</strong></p><p>{{ error }}</p>
+  <pre><code>python -m src.train</code></pre></div>
+{% else %}
+<p class="lede">The cleaned training data: {{ "{:,}".format(n_rows) }} SDSS DR17 objects with a spectroscopic class of
+  STAR or GALAXY. Charts use a random sample of up to 1,500 objects per class; the full table is not exposed.</p>
+
+<section class="split split--even">
+  <div class="panel">
+    <h2>Class balance</h2>
+    <div class="chart-box chart-box--short"><canvas id="class-chart" role="img" aria-label="Bar chart of objects per class"></canvas></div>
+    <p class="note">{{ "{:,}".format(counts.GALAXY) }} galaxies and {{ "{:,}".format(counts.STAR) }} stars
+      ({{ "%.1f"|format(counts.STAR / n_rows * 100) }}% stars). Because the classes are imbalanced,
+      model quality is judged with F1, recall and ROC-AUC as well as accuracy.</p>
+  </div>
+  <div class="panel">
+    <h2>Distribution of one feature</h2>
+    <label for="hist-feature" class="inline-label">Feature</label>
+    <select id="hist-feature">
+      {% for f in stat_features %}<option value="{{ f }}" {% if f == 'g_r' %}selected{% endif %}>{{ f.replace('_', ' − ') }}</option>{% endfor %}
+    </select>
+    <div class="chart-box chart-box--short"><canvas id="hist-chart" role="img" aria-label="Histogram of the selected feature by class"></canvas></div>
+    <p class="note" id="hist-desc"></p>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Relationship between two features</h2>
+  <div class="controls">
+    <label class="inline-label" for="x-feature">Horizontal axis</label>
+    <select id="x-feature">{% for f in stat_features %}<option value="{{ f }}" {% if f == 'u_g' %}selected{% endif %}>{{ f.replace('_', ' − ') }}</option>{% endfor %}</select>
+    <label class="inline-label" for="y-feature">Vertical axis</label>
+    <select id="y-feature">{% for f in stat_features %}<option value="{{ f }}" {% if f == 'g_r' %}selected{% endif %}>{{ f.replace('_', ' − ') }}</option>{% endfor %}</select>
+  </div>
+  <div class="chart-box"><canvas id="scatter-chart" role="img" aria-label="Scatter plot of two features coloured by class"></canvas></div>
+  <p class="note">Axes are clipped to the central 99% of values so outliers do not squash the plot.</p>
+</section>
+
+<section class="panel">
+  <h2>Features</h2>
+  <div class="table-scroll">
+  <table>
+    <thead><tr><th scope="col">Feature</th><th scope="col">Meaning</th>
+      <th scope="col" class="num">Median, stars</th><th scope="col" class="num">Median, galaxies</th></tr></thead>
+    <tbody>
+    {% for f in stat_features %}
+      <tr><th scope="row">{{ f.replace('_', ' − ') }}</th><td>{{ config.FEATURE_DESCRIPTIONS[f] }}</td>
+        <td class="num">{{ "%.4f"|format(stats.loc['STAR', (f, 'median')]) }}</td>
+        <td class="num">{{ "%.4f"|format(stats.loc['GALAXY', (f, 'median')]) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="note">Colour indices (u − g, g − r, r − i, i − z) are derived from the magnitudes. Identifier, sky-position and
+    plate/fibre/date columns are excluded from the model to avoid leakage.</p>
+</section>
+
+<section class="panel">
+  <h2>Sample rows</h2>
+  <div class="table-scroll">
+  <table>
+    <thead><tr>{% for c in ['u','g','r','i','z','redshift','class'] %}<th scope="col" {% if c != 'class' %}class="num"{% endif %}>{{ c }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for row in sample %}
+      <tr>{% for c in ['u','g','r','i','z'] %}<td class="num">{{ "%.3f"|format(row[c]) }}</td>{% endfor %}
+        <td class="num">{{ "%.5f"|format(row.redshift) }}</td>
+        <td><span class="tag tag--{{ row['class']|lower }}">{{ row['class']|title }}</span></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="note">12 randomly chosen rows (fixed seed).</p>
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if not error %}
+<script>
+  StellarClass.explorer({
+    sampleUrl: "{{ url_for('api_sample', n=1500) }}",
+    counts: {{ counts|tojson }},
+    descriptions: {{ config.FEATURE_DESCRIPTIONS|tojson }}
+  });
+</script>
+{% endif %}
+{% endblock %}

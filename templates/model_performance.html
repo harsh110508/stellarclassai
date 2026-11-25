@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Model performance{% endblock %}
+{% block content %}
+<h1>Model performance</h1>
+{% if not metrics or not fs %}
+<div class="alert" role="alert"><p><strong>No evaluation results yet.</strong></p>
+  <p>Train and evaluate the models, then reload this page:</p><pre><code>python -m src.train</code></pre></div>
+{% else %}
+{% set rf = fs.models["Random Forest"] %}
+<p class="lede">All numbers below come from {{ "{:,}".format(metrics.dataset.n_test) }} held-out test objects
+  ({{ "{:,}".format(metrics.dataset.test_class_counts.STAR) }} stars, {{ "{:,}".format(metrics.dataset.test_class_counts.GALAXY) }} galaxies)
+  that were not used for training or tuning. <strong>STAR is the positive class</strong> for precision, recall and F1.</p>
+{% if metrics.quick_mode %}<p class="warning">These results come from a quick smoke-test run (<code>--quick</code>). Run <code>python -m src.train</code> for the full search.</p>{% endif %}
+
+<nav class="tabs" aria-label="Feature set">
+  {% for key in config.FEATURE_SETS %}
+  <a href="{{ url_for('performance', set=key) }}" {% if key == feature_set %}aria-current="page"{% endif %}>{{ FEATURE_SET_LABELS[key] }}</a>
+  {% endfor %}
+</nav>
+
+<section class="panel">
+  <h2>Random Forest on the test set</h2>
+  <dl class="metric-row">
+    {% for key in ["accuracy", "precision", "recall", "f1", "roc_auc", "balanced_accuracy"] %}
+    <div><dt>{{ METRIC_LABELS[key] }}</dt><dd class="num">{{ "%.4f"|format(rf[key]) }}</dd></div>
+    {% endfor %}
+  </dl>
+  <p>{% if feature_set == 'full' %}
+    With redshift available, the Random Forest misclassifies {{ rf.confusion_matrix[0][1] + rf.confusion_matrix[1][0] }}
+    of {{ "{:,}".format(metrics.dataset.n_test) }} test objects. This high score mostly reflects how cleanly redshift
+    separates stars (z ≈ 0) from galaxies in this sample. Redshift needs a spectrum, so see the magnitudes-only results
+    for the harder, more realistic case.
+  {% else %}
+    Using only the five magnitudes, the Random Forest recovers {{ "%.1f"|format(rf.recall * 100) }}% of stars, and
+    {{ "%.1f"|format(rf.precision * 100) }}% of the objects it calls stars really are stars. Logistic Regression does much
+    worse here (F1 {{ "%.3f"|format(fs.models["Logistic Regression"].f1) }} against {{ "%.3f"|format(rf.f1) }}), which suggests the
+    boundary between the classes in colour space is non-linear.
+  {% endif %}</p>
+</section>
+
+<section class="split split--even">
+  <div class="panel">
+    <h2>Confusion matrix</h2>
+    {% set cm = rf.confusion_matrix %}
+    <table class="confusion">
+      <caption class="sr-only">Rows are true classes, columns are predicted classes</caption>
+      <thead><tr><td></td><th scope="col">Predicted galaxy</th><th scope="col">Predicted star</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">True galaxy</th><td class="cm-good">{{ "{:,}".format(cm[0][0]) }}<small>true negatives</small></td><td class="cm-bad">{{ "{:,}".format(cm[0][1]) }}<small>false positives</small></td></tr>
+        <tr><th scope="row">True star</th><td class="cm-bad">{{ "{:,}".format(cm[1][0]) }}<small>false negatives</small></td><td class="cm-good">{{ "{:,}".format(cm[1][1]) }}<small>true positives</small></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="panel">
+    <h2>ROC curve</h2>
+    <div class="chart-box chart-box--short"><canvas id="roc-chart" role="img" aria-label="ROC curve of the Random Forest and Logistic Regression"></canvas></div>
+    <p class="note">The curve shows the trade-off between recovering stars and mislabelling galaxies as the decision threshold moves. The area under it (ROC-AUC) is {{ "%.4f"|format(rf.roc_auc) }}.</p>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Comparison with baselines</h2>
+  <div class="table-scroll">
+  <table>
+    <thead><tr><th scope="col">Model</th>{% for key in ["accuracy", "balanced_accuracy", "precision", "recall", "f1", "roc_auc"] %}<th scope="col" class="num">{{ METRIC_LABELS[key] }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for name, m in fs.models.items() %}
+      <tr {% if name == "Random Forest" %}class="row-highlight"{% endif %}><th scope="row">{{ name }}</th>
+        {% for key in ["accuracy", "balanced_accuracy", "precision", "recall", "f1", "roc_auc"] %}<td class="num">{{ "%.4f"|format(m[key]) if key in m else "–" }}</td>{% endfor %}</tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="note">The majority-class baseline always predicts "galaxy". Its accuracy of {{ "%.1f"|format(fs.models["Majority-class baseline"].accuracy * 100) }}% with zero recall
+    shows why accuracy alone is misleading on imbalanced data.</p>
+</section>
+
+<section class="split split--even">
+  <div class="panel">
+    <h2>Feature importance</h2>
+    <div class="chart-box"><canvas id="importance-chart" role="img" aria-label="Bar chart of Random Forest feature importance"></canvas></div>
+    <p class="note">Mean decrease in impurity: how much each feature, including the derived colours, reduced class mixing across all tree splits.
+      It shows what the model relied on, not what causes an object to be a star or galaxy, and it tends to split credit between correlated features.</p>
+  </div>
+  <div class="panel">
+    <h2>Permutation importance</h2>
+    <div class="chart-box"><canvas id="perm-chart" role="img" aria-label="Bar chart of permutation importance on the test set"></canvas></div>
+    <p class="note">Drop in test-set ROC-AUC when one measured input is randomly shuffled. Shuffling a magnitude also scrambles the colours built from it.</p>
+  </div>
+</section>
+
+<section class="split split--even">
+  <div class="panel">
+    <h2>Cross-validation</h2>
+    <p>{{ fs.search.cv_folds }}-fold stratified cross-validation of the tuned Random Forest on the training set.</p>
+    <table>
+      <thead><tr><th scope="col">Metric</th><th scope="col" class="num">Mean</th><th scope="col" class="num">Std. dev.</th></tr></thead>
+      <tbody>{% for key, v in fs.cross_validation.items() %}
+        <tr><th scope="row">{{ METRIC_LABELS[key] }}</th><td class="num">{{ "%.4f"|format(v.mean) }}</td><td class="num">{{ "%.4f"|format(v.std) }}</td></tr>
+      {% endfor %}</tbody>
+    </table>
+    <p class="note">Small standard deviations mean the score is stable across different subsets of the training data.</p>
+  </div>
+  <div class="panel">
+    <h2>Tuned hyper-parameters</h2>
+    <p>Randomized search over {{ fs.search.n_iter }} configurations, scored by {{ fs.search.scoring }}
+      (best CV F1 {{ "%.4f"|format(fs.search.best_cv_f1) }}).</p>
+    <table>
+      <tbody>{% for k, v in fs.best_params.items() %}<tr><th scope="row">{{ k }}</th><td>{{ v if v is not none else "None" }}</td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Classification report</h2>
+  <pre class="report">{{ fs.classification_report }}</pre>
+  <p class="note">Generated {{ metrics.generated_at }} UTC with random seed {{ metrics.random_state }}.
+    Static figures are also saved in <code>reports/figures/</code>.</p>
+  {% if figures %}
+  <details>
+    <summary>Saved Matplotlib figures</summary>
+    <div class="figure-grid">
+      {% for key, name in figures.items() %}<a href="{{ url_for('figure', name=name) }}"><img src="{{ url_for('figure', name=name) }}" alt="{{ key.replace('_', ' ') }} figure for {{ FEATURE_SET_LABELS[feature_set]|lower }}" loading="lazy"></a>{% endfor %}
+    </div>
+  </details>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if fs %}
+<script>
+  StellarClass.performance({
+    roc: {{ fs.roc_curve|tojson }},
+    rocLogreg: {{ fs.roc_curve_logreg|tojson }},
+    aucRf: {{ fs.models["Random Forest"].roc_auc }},
+    aucLr: {{ fs.models["Logistic Regression"].roc_auc }},
+    impurity: {{ fs.feature_importance.impurity|tojson }},
+    permutation: {{ fs.feature_importance.permutation|tojson }}
+  });
+</script>
+{% endif %}
+{% endblock %}

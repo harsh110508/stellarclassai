@@ -1,0 +1,38 @@
+{
+  "raw_rows": 100000,
+  "raw_class_counts": {
+    "GALAXY": 59445,
+    "STAR": 21594,
+    "QSO": 18961
+  },
+  "removed_other_classes": 18961,
+  "removed_missing_values": 0,
+  "removed_sentinel_or_non_finite": 1,
+  "removed_duplicates": 0,
+  "clean_rows": 81038,
+  "clean_class_counts": {
+    "GALAXY": 59445,
+    "STAR": 21593
+  },
+  "features_kept": [
+    "u",
+    "g",
+    "r",
+    "i",
+    "z",
+    "redshift"
+  ],
+  "columns_excluded_as_identifiers_or_leakage": [
+    "obj_ID",
+    "alpha",
+    "delta",
+    "run_ID",
+    "rerun_ID",
+    "cam_col",
+    "field_ID",
+    "spec_obj_ID",
+    "plate",
+    "MJD",
+    "fiber_ID"
+  ]
+}
