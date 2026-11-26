@@ -320,6 +320,12 @@ stellarclass-ai/
 * **No morphology features.** The dataset lacks PSF-vs-model magnitude differences and sizes (e.g.
   `psfMag_r − modelMag_r`, `petroRad_r`). Those are the classic star–galaxy separators and would likely improve
   the photometric model.
+* **Very nearby galaxies (e.g. Andromeda) look like stars to the model.** Their redshift is near zero, like a
+  star's, and they are far brighter than any training object (Andromeda r ≈ 3 vs. the brightest training object at
+  r ≈ 9.8). The app therefore accepts an optional **apparent size** in arcseconds: an object wider than 10 arcsec is
+  resolved, and stars are unresolved points, so it is classified GALAXY by this physics rule, not by the model. The
+  result page always says which one decided. The rule never fires on the SDSS test set (it has no size column), so
+  the reported metrics are unchanged.
 * **Probabilities are vote fractions.** A Random Forest's probability is the share of trees voting for a class.
   It has not been calibrated, so "90%" does not guarantee that 90% of such objects are stars.
 * **Feature importance is not causation.** It shows what the model relied on in this sample, and impurity

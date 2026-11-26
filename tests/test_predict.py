@@ -155,3 +155,76 @@ def test_probability_formatting_never_claims_certainty():
     assert format_probability(1.0) == "> 99.9%"
     assert format_probability(0.0) == "< 0.1%"
     assert format_probability(0.8766) == "87.7%"
+
+
+def test_warns_when_one_magnitude_is_copied_into_every_box(trained):
+    result = predict_one({b: 18.5 for b in "ugriz"}, model_dir=trained["models"])
+    assert any("copied into every box" in w for w in result["explanation"]["warnings"])
+
+
+def test_warns_about_bands_in_reverse_order(trained):
+    reversed_bands = {"u": 18.8, "g": 19.2, "r": 20.1, "i": 21.6, "z": 22.8}
+    result = predict_one(reversed_bands, model_dir=trained["models"])
+    assert any("reverse order" in w for w in result["explanation"]["warnings"])
+
+
+def test_warns_about_colours_outside_the_real_range(trained):
+    result = predict_one({"u": 25.0, "g": 18.0, "r": 18.0, "i": 18.0, "z": 18.0}, model_dir=trained["models"])
+    assert any("right box" in w for w in result["explanation"]["warnings"])
+
+
+def test_near_zero_redshift_note_only_when_colours_look_like_a_galaxy(trained):
+    galaxy_colours = {"u": 23.0, "g": 21.6, "r": 20.1, "i": 19.2, "z": 18.8, "redshift": -0.001}
+    result = predict_one(galaxy_colours, model_dir=trained["models"])
+    assert any("Andromeda" in w for w in result["explanation"]["warnings"])
+    star = predict_one(STAR_LIKE, model_dir=trained["models"])
+    assert not any("Andromeda" in w for w in star["explanation"]["warnings"])
+
+
+def test_no_input_warnings_for_a_typical_galaxy(trained):
+    galaxy = {"u": 23.0, "g": 21.6, "r": 20.1, "i": 19.2, "z": 18.8, "redshift": 0.45}
+    assert predict_one(galaxy, model_dir=trained["models"])["explanation"]["warnings"] == []
+
+
+def test_batch_marks_suspicious_rows(trained):
+    df = pd.DataFrame([{b: 18.5 for b in "ugriz"}, {"u": 23.0, "g": 21.6, "r": 20.1, "i": 19.2, "z": 18.8}])
+    out = predict_dataframe(df, model_dir=trained["models"])
+    assert "copied" in out.loc[0, "warning"]
+    assert out.loc[1, "warning"] is None
+
+
+ANDROMEDA = {"u": 5.31, "g": 3.82, "r": 3.10, "i": 2.71, "z": 2.46, "redshift": -0.001}
+
+
+def test_size_rule_classifies_andromeda_as_galaxy(trained):
+    result = predict_one({**ANDROMEDA, "size_arcsec": 10800}, model_dir=trained["models"])
+    assert result["prediction"] == "GALAXY"
+    assert result["decided_by"] == "size rule"
+    assert result["inputs"]["size_arcsec"] == 10800
+    assert "cannot be a star" in result["explanation"]["summary"]
+
+
+def test_point_sized_object_is_left_to_the_model(trained):
+    result = predict_one({**STAR_LIKE, "size_arcsec": 1.5}, model_dir=trained["models"])
+    assert result["decided_by"] == "model"
+    assert result["prediction"] == result["model_prediction"]
+
+
+def test_very_bright_input_gets_one_clear_warning(trained):
+    warnings = predict_one(ANDROMEDA, model_dir=trained["models"])["explanation"]["warnings"]
+    assert sum("much brighter than anything" in w for w in warnings) == 1
+    assert not any("outside the training range" in w for w in warnings)
+
+
+@pytest.mark.parametrize("size, message", [("big", "must be a number"), (-5, "between"), ("inf", "finite")])
+def test_invalid_size_is_rejected(size, message):
+    with pytest.raises(InputValidationError) as exc:
+        predict_one({**STAR_LIKE, "size_arcsec": size})
+    assert message in exc.value.errors["size_arcsec"]
+
+
+def test_batch_applies_size_rule(trained):
+    df = pd.DataFrame([{**ANDROMEDA, "size_arcsec": 10800}, {**STAR_LIKE, "size_arcsec": math.nan}])
+    out = predict_dataframe(df, model_dir=trained["models"])
+    assert out.loc[0, "prediction"] == "GALAXY" and out.loc[0, "decided_by"] == "size rule"
+    assert out.loc[1, "decided_by"] == "model"

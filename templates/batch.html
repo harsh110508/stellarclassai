@@ -2,7 +2,7 @@
 {% block title %}Batch classification{% endblock %}
 {% block content %}
 <h1>Batch classification</h1>
-<p class="lede">Upload a CSV with columns <code>u, g, r, i, z</code> and an optional <code>redshift</code> column.
+<p class="lede">Upload a CSV with columns <code>u, g, r, i, z</code> and optional <code>redshift</code> and <code>size_arcsec</code> columns.
   You get the same file back with a prediction and both class probabilities added to each row.</p>
 {% include "_model_missing.html" %}
 <div class="split">
@@ -22,7 +22,9 @@
     <ul class="evidence">
       <li>Rows with a redshift value use the magnitudes + redshift model; rows without one use the magnitudes-only model.</li>
       <li>Rows with missing or invalid magnitudes are kept, with the reason in an <code>error</code> column.</li>
-      <li>Added columns: <code>prediction</code>, <code>p_star</code>, <code>p_galaxy</code>, <code>feature_set</code>, <code>error</code>.</li>
+      <li>Added columns: <code>prediction</code>, <code>p_star</code>, <code>p_galaxy</code>, <code>feature_set</code>, <code>decided_by</code>, <code>error</code>, <code>warning</code>.</li>
+      <li>Rows with <code>size_arcsec</code> over {{ config.EXTENDED_SIZE_ARCSEC|int }} are classified GALAXY by the size rule (<code>decided_by = size rule</code>).</li>
+      <li>The <code>warning</code> column flags rows that look like typing mistakes, such as five identical magnitudes.</li>
       <li>Uploaded files are processed in memory and not stored.</li>
     </ul>
   </div>

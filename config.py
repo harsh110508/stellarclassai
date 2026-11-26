@@ -45,6 +45,9 @@ INVERSE_LABEL_MAP = {v: k for k, v in LABEL_MAP.items()}
 
 MAGNITUDE_COLUMNS = ["u", "g", "r", "i", "z"]
 REDSHIFT_COLUMN = "redshift"
+# Optional apparent size in arcseconds. Not a model feature (the dataset has
+# no size measurement); it drives a physics rule, see EXTENDED_SIZE_ARCSEC.
+SIZE_COLUMN = "size_arcsec"
 
 # Two feature sets are trained:
 #   full        -> magnitudes + spectroscopic redshift (the course feature set)
@@ -75,6 +78,8 @@ FEATURE_DESCRIPTIONS = {
     "z": "Apparent magnitude through the infrared filter (~893 nm).",
     "redshift": "Spectroscopic redshift: how much the spectrum is shifted to longer wavelengths. "
                 "Requires a spectrum, so it is not available for photometry-only objects.",
+    "size_arcsec": "Optional apparent size (angular diameter) in arcseconds. Not used by the model; an object "
+                   "clearly larger than a point (over 10 arcsec) is classified as a galaxy by a physics rule.",
     "u_g": "Colour index u - g (derived). Colours compare brightness between bands and do not depend on distance.",
     "g_r": "Colour index g - r (derived).",
     "r_i": "Colour index r - i (derived).",
@@ -87,7 +92,30 @@ INPUT_LIMITS = {
     "u": (0.0, 40.0), "g": (0.0, 40.0), "r": (0.0, 40.0),
     "i": (0.0, 40.0), "z": (0.0, 40.0),
     "redshift": (-0.05, 10.0),
+    "size_arcsec": (0.0, 100_000.0),
 }
+
+# Stars are so far away that they appear as points: in SDSS images their size
+# is set by atmospheric blurring (seeing, about 1-2 arcsec). An object clearly
+# larger than this is resolved, so it cannot be a star. 10 arcsec leaves a wide
+# margin above the seeing. Andromeda, for comparison, is about 10,000 arcsec.
+EXTENDED_SIZE_ARCSEC = 10.0
+
+# Central 99.8% (0.1st-99.9th percentile) of each colour index in the cleaned
+# SDSS DR17 data. Inputs outside these ranges are unusual for real objects and
+# usually mean a typing mistake (e.g. bands entered in the wrong order).
+TYPICAL_COLOUR_RANGES = {
+    "u_g": (-2.65, 6.57),
+    "g_r": (-1.91, 4.45),
+    "r_i": (-1.79, 3.18),
+    "i_z": (-3.25, 2.88),
+}
+# No real object in the dataset has all four colours this close to zero, so
+# five (nearly) identical magnitudes almost always mean one value was copied.
+FLAT_COLOUR_TOLERANCE = 0.02
+# Every star in the dataset has |redshift| below this; galaxies this close to
+# zero (520 of 59,445) are rare, so a redshift this small pushes the model towards STAR.
+STAR_REDSHIFT_LIMIT = 0.005
 
 # --------------------------------------------------------------------------
 # Modelling

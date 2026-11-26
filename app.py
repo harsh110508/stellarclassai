@@ -102,7 +102,7 @@ def create_app(overrides: dict | None = None) -> Flask:
         result, errors, values = None, {}, {}
         if request.method == "POST":
             check_csrf()
-            fields = config.MAGNITUDE_COLUMNS + [config.REDSHIFT_COLUMN]
+            fields = config.MAGNITUDE_COLUMNS + [config.REDSHIFT_COLUMN, config.SIZE_COLUMN]
             values = {f: request.form.get(f, "").strip() for f in fields}
             try:
                 result = predict_one(values, app.config["MODEL_DIR"])
@@ -196,7 +196,8 @@ def create_app(overrides: dict | None = None) -> Flask:
 
     @app.get("/batch/template.csv")
     def batch_template():
-        csv = "u,g,r,i,z,redshift\n19.4,17.9,17.3,17.1,17.0,0.0001\n22.1,20.6,19.1,18.5,18.1,\n"
+        csv = ("u,g,r,i,z,redshift,size_arcsec\n19.4,17.9,17.3,17.1,17.0,0.0001,\n22.1,20.6,19.1,18.5,18.1,,\n"
+               "5.31,3.82,3.10,2.71,2.46,-0.001,10800\n")
         return Response(csv, mimetype="text/csv",
                         headers={"Content-Disposition": "attachment; filename=stellarclass_template.csv"})
 

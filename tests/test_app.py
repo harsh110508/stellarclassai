@@ -79,7 +79,7 @@ def test_batch_upload_returns_csv(client):
     assert response.status_code == 200
     assert response.mimetype == "text/csv"
     lines = response.get_data(as_text=True).strip().splitlines()
-    assert lines[0].endswith("prediction,p_star,p_galaxy,feature_set,error")
+    assert lines[0].endswith("prediction,p_star,p_galaxy,feature_set,decided_by,error,warning")
     assert len(lines) == 4
 
 
@@ -118,3 +118,12 @@ def test_app_without_models_or_data(tmp_path):
     assert client.post("/api/predict", json={k: float(v) for k, v in VALID_FORM.items()}).status_code == 503
     assert client.get("/api/health").get_json()["status"] == "degraded"
     assert client.get("/api/sample").status_code == 503
+
+
+def test_form_shows_size_rule_for_andromeda(client):
+    form = {"u": "5.31", "g": "3.82", "r": "3.10", "i": "2.71", "z": "2.46",
+            "redshift": "-0.001", "size_arcsec": "10800"}
+    html = client.post("/predict", data=form).get_data(as_text=True)
+    assert 'class="verdict verdict--galaxy"' in html
+    assert "Decided by the size rule" in html
+    assert "10800" in client.get("/history").get_data(as_text=True)

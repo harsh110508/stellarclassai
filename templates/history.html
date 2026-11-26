@@ -12,12 +12,12 @@
 </form>
 <div class="table-scroll">
 <table>
-  <thead><tr><th scope="col">Time (UTC)</th>{% for c in ['u','g','r','i','z','redshift'] %}<th scope="col" class="num">{{ c }}</th>{% endfor %}
+  <thead><tr><th scope="col">Time (UTC)</th>{% for c in ['u','g','r','i','z','redshift','size_arcsec'] %}<th scope="col" class="num">{{ 'size (arcsec)' if c == 'size_arcsec' else c }}</th>{% endfor %}
     <th scope="col">Model</th><th scope="col">Prediction</th><th scope="col" class="num">P(star)</th></tr></thead>
   <tbody>
   {% for r in rows %}
   <tr><td>{{ r.created_at.replace('T', ' ')[:19] }}</td>
-    {% for c in ['u','g','r','i','z','redshift'] %}<td class="num">{{ r.inputs[c] if c in r.inputs else '–' }}</td>{% endfor %}
+    {% for c in ['u','g','r','i','z','redshift','size_arcsec'] %}<td class="num">{{ r.inputs[c] if c in r.inputs else '–' }}</td>{% endfor %}
     <td>{{ FEATURE_SET_LABELS[r.feature_set] }}</td>
     <td><span class="tag tag--{{ r.prediction|lower }}">{{ r.prediction|title }}</span></td>
     <td class="num">{{ "%.3f"|format(r.p_star) }}</td></tr>
